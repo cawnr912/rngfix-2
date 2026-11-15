@@ -91,3 +91,47 @@ The plugin checks if the following conditions are true:
 If all of these conditions are true, then the player is placed just barely on top of the stair step they just collided with, and the velocity they would have had if they had not collided with the face of the stair step is restored. This issue is mostly unaffected by tickrate.
 
 This fix is only applied on surf maps (maps starting with `surf_`) because it can save a bhopping player from losing all of their speed if they barely hit a small single step even if they had no intention of sliding. Stairs are very uncommonly found on bhop maps, and even then I can't say I've ever seen a staircase that was worth sliding up as part of an optimal route, so the fix is really not needed on bhop anyway.
+
+---
+
+## Changes in 2.0
+
+### Bug fixes over upstream
+
+- **CS:GO ducked hull** is 54 units, not 64. With the wrong size, predictions in 64-unit gaps (such as grates) started inside solid and the stair fix fired by mistake, snapping players upwards.
+- **Stair fix false positives:** predictions that start inside solid are ignored, and the stair fix needs a real wall (a non-zero horizontal normal).
+- **Rewinds are checked:** when the uphill or edge fix moves the player back to the collision point, that spot is hull-traced first. The fix is skipped if it's blocked, so a player can't be put inside geometry or fire trigger touches by mistake.
+- **Ducking:** on the tick a player ducks, the collision trace and the rewind use the post-duck origin. Before, the trace mixed origins and the rewind applied the duck shift twice.
+- **Air speed cap:** read from `sv_air_max_wishspeed` when the game has it, instead of a fixed 30.
+- **Trigger bookkeeping:** touch flags are cleared when a trigger is removed, so a reused entity index can't make the trigger-jump fix skip a new trigger. Teleport destination lookups are cached, rather than scanning every entity each tick.
+- **Gamedata:** the last hard-coded movement offsets (view angles, buttons, old buttons) now come from `rngfix.games.txt`. If they're missing, the plugin falls back to the old values and logs it.
+- **Surf map detection** works for workshop maps and can be overridden per map (`rngfix_surfmap`).
+
+### Subtick fixes
+
+The engine moves a player one whole tick at a time. Several fixes, and teleports, cut a tick short at the moment of contact and throw away the rest of it, so how much time a player loses depends on where in the tick the contact fell: luck again. With `rngfix_subtick 1`, RNGFix gives that lost part of the tick back. Each part checks that it's safe to apply and does nothing otherwise, so the worst case is the original behaviour. `sm_rngfix_stats` counts how often each part was applied, skipped or dropped, and `rngfix_debug 1` prints why.
+
+**Time credit after uphill and edge fixes** (part `1`)
+- *Problem:* to make the player land, the uphill and edge fixes move them back to the contact point. The rest of that tick, after contact, is lost, so the player ends up behind where a jump at the moment of contact would have taken them.
+- *Fix:* the lost time is stored as a credit. The engine still lands the player and jumps them on the next tick, so jump events, stamina, sounds and timers all stay engine-driven. On the tick after that, the player is moved forward along their airborne path by the credited time. If they hit a surface on the way, they slide along it like the engine would, instead of losing the rest.
+- *Skipped when:* the player doesn't jump straight after landing, is teleported, stops walking (ladder, noclip, water), is back on the ground, is on a booster (base velocity), their movement speed scale changes, or the path is blocked.
+- *Known limitation:* no air acceleration is applied over the credited time, so strafe speed gained in that time (at most one tick's worth per fixed landing) is not added. This is deliberate: the gain is too small to justify another hand-written copy of the engine's air acceleration.
+- *Debug lines:* `Subtick credit: X tick`, then `Subtick applied: moved ...` (and `Subtick slide: plane ...` for each surface slid along), or `Subtick dropped: <reason>`.
+
+**Stair leftover** (part `2`)
+- *Problem:* the stair fix puts the player 1 unit past the step face on top of the step, and the rest of that tick's travel is dropped.
+- *Fix:* the player carries on along the step top for the rest of the tick, at their current speed, stopping at anything in the way.
+- *Skipped when:* the path starts inside solid, or a trigger is on the path (so no trigger is skipped over).
+- *Debug lines:* `Stairs subtick: +X units (Y tick)`, or `Stairs subtick skipped: <reason>`.
+
+**Teleport leftover** (part `4`)
+- *Problem:* a teleport trigger only moves the player at the end of the tick. The travel after they entered the trigger is lost, so the speed out of a teleport depends on how deep into the trigger they got that tick.
+- *Fix:* the part of the tick after entering the trigger carries on from the destination at the start of the next tick, sliding along anything in the way.
+- *Skipped when:* two teleports happen on consecutive ticks (a hub meant to stop the player), the player hit a surface before reaching the trigger, the uphill/edge or trigger-jump fix already moved them that tick, they were already inside the trigger at the start of the tick, the destination stops them or puts them on the ground, or the path would land them.
+- *Debug lines:* `Subtick credit (teleport): X tick`, then `Subtick applied (teleport): moved ...` or `Subtick dropped (teleport): <reason>`; or `Teleport subtick skipped: <reason>` when no credit is given.
+
+**Edge prediction through several surfaces** (part `8`)
+- *Problem:* the edge fix decides whether the player would have landed by estimating where they end the tick after hitting the edge. Upstream stops that estimate at the first surface, so a ramp corner or a wall next to the edge can give the wrong answer.
+- *Fix:* the estimate slides through up to 4 surfaces, like the engine's own movement. If that slide ends moving upward (for example up a kicker ramp), the player can't land that tick anyway, so no edge fix is applied.
+- *Falls back* to the single-surface estimate if the multi-surface one fails.
+- *Debug lines:* `Edge predict: 1-bump X, 4-bump Y`, `Edge predict: 4-bump ends rising (z-vel X), no fix`, or `Edge predict: 4-bump failed (...), using 1-bump`. The stats count edge fixes this avoided or added compared with upstream.

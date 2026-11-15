@@ -53,6 +53,24 @@
 				"linux"		"2"
 			}
 
+			"CMoveData::m_vecViewAngles"
+			{
+				"windows"   "12"
+				"linux"     "12"
+			}
+
+			"CMoveData::m_nButtons"
+			{
+				"windows"   "36"
+				"linux"     "36"
+			}
+
+			"CMoveData::m_nOldButtons"
+			{
+				"windows"   "40"
+				"linux"     "40"
+			}
+
 			"CMoveData::m_flForwardMove"
 			{
 				"windows"   "44"
@@ -89,6 +107,30 @@
 	{
 		"Offsets"
 		{
+			"CMoveData::m_vecViewAngles"
+			{
+				"windows"   "12"
+				"windows64" "12"
+				"linux"     "12"
+				"linux64"   "12"
+			}
+
+			"CMoveData::m_nButtons"
+			{
+				"windows"   "36"
+				"windows64" "36"
+				"linux"     "36"
+				"linux64"   "36"
+			}
+
+			"CMoveData::m_nOldButtons"
+			{
+				"windows"   "40"
+				"windows64" "40"
+				"linux"     "40"
+				"linux64"   "40"
+			}
+
 			"CMoveData::m_flForwardMove"
 			{
 				"windows"   "44"

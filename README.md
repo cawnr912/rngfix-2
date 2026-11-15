@@ -1,72 +1,57 @@
-# RNGFix
+# RNGFix 2
 
 [![RNGFix Demo Video](https://i.imgur.com/YYm16Qh.png)](https://www.youtube.com/watch?v=PlMjHAQ90G8)
 
-RNGFix is a [SourceMod](https://www.sourcemod.net/about.php) plugin that fixes a number of physics bugs that show up in movement-based game modes like bhop and surf. These issues are related in that they all appear to happen at random -- as far as a human player can tell.
+A [SourceMod](https://www.sourcemod.net/about.php) plugin for CS:S and CS:GO that fixes physics bugs in bhop and surf that appear to happen at random. Nothing it does is impossible otherwise; it just stops luck from mattering.
 
-Another plugin, [Slope Landing Fix (Slopefix)](https://forums.alliedmods.net/showthread.php?p=2322788), fixes the first of these issues (downhill inclines) and is seen as a necessity for both bhop and surf. RNGFix follows the spirit of this plugin by expanding on it with fixes for many more pseudo-random bugs.
+This is a fork of [RNGFix](https://github.com/jason-e/rngfix) by rio. All credit for the original plugin goes to him.
 
-Nothing this plugin does is impossible otherwise -- it just keeps random chance from mattering.
+## What's new in 2.0
 
-CSS and CS:GO are currently supported. Support for additional games may be added in the future.
+- **Subtick fixes** (on by default): the part of a tick that fixes, stairs and teleports would otherwise throw away is given back, so the result no longer depends on where in the tick contact happened. `rngfix_subtick 0` restores upstream timing.
+- **CS:GO ducked hull** is 54 units, not 64, so the stair fix no longer snaps ducked players upwards in grates and other 64-unit gaps.
+- **Safer fixes:** rewinds are hull-traced before moving the player, predictions that start in solid are ignored, the stair fix needs a real wall, and the duck-tick origin is handled correctly.
+- **Ordered telehop** (`rngfix_telehop 2`, opt-in), **bots skipped** by default, `sm_rngfix_stats`, and per-map surf detection (`rngfix_surfmap`).
+- Smaller fixes: air speed cap from `sv_air_max_wishspeed`, trigger bookkeeping, and the remaining movement offsets moved to gamedata.
 
-## Dependencies
+Details are in [tech.md](tech.md).
 
-* **SourceMod 1.10 - Build 6326 or newer** - The trigger jumping fix makes use of ray trace functionality added to SourceMod in August 2018.
+## Installation
 
-* [**DHooks**](https://forums.alliedmods.net/showthread.php?t=180114)
+Download the [latest release](https://github.com/cawnr912/rngfix-2/releases/latest) and extract it into your server's `csgo/` or `cstrike/` folder. Always update `rngfix.smx` and `rngfix.games.txt` together.
 
-* (Optional, CS:GO) [Movement Unlocker](https://forums.alliedmods.net/showthread.php?t=255298) - Enables sliding on CS:GO. If you don't care about sliding on surf and the stair sliding fix, you don't need this.
-
-Also, remember that you should stop using Slopefix if using RNGFix.
+**Requirements:** SourceMod 1.10 build 6326 or newer, and [DHooks](https://forums.alliedmods.net/showthread.php?t=180114). On CS:GO, [Movement Unlocker](https://forums.alliedmods.net/showthread.php?t=255298) is needed for sliding (surf and the stair fix). Remove Slopefix, since RNGFix replaces it.
 
 ## Fixes
 
-**Downhill Inclines**
-
-Sometimes a player will not be "boosted" when falling onto an inclined surface, specifically while moving downhill. This fix results in the player always getting boosted. This is the scenario addressed by the original slopefix. RNGFix also implements this fix in a way that does not cause double boosts when a `trigger_push` is on the incline, which is a problem the original slopefix had.
-
-
-**Uphill Inclines**
-
-When bhopping *up* an incline, sometimes the player loses speed on the initial jump, and sometimes they do not. This fix makes it so the player never loses speed in this scenario, as long as it was possible for the player to not lose speed, if not for the "luck" factor that makes this random. On shallow inclines and uneven ground, this means you will no longer randomly lose small amounts of speed when jumping, and on steep inclines this means you no longer need to land sideways and then turn directly up them, which was just a method for maximizing favorable odds.
-
-
-**Trigger Jumping**
-
-Triggers that extend less than 2 units above the ground can sometimes be "jumped on" without activating them. This fix prevents this bug from occuring. This fixes annoyances like jumping on thin boosters without activating them, as well as exploitable behavior such as jumping on thin teleport triggers without activating them.
-
-
-**Telehops**
-
-It is possible to pass through a teleport trigger so quickly that you also collide with the wall (or floor) behind it before actually being teleported, despite touching the teleporter "first". This fix makes it impossible to both collide with a surface and activate a teleport in the same tick. This is most notably useful on staged bhop maps with thin stage-end teleports positioned against walls; with this fix you no longer need to go through them at an angle just to maximize the odds of keeping your speed.
-
-
-**Edge Bugs**
-
-When moving at high speed and landing on the extreme trailing edge of a platform, it is possible to collide with the surface -- resulting in a loss of vertical speed -- but without jumping, despite pressing jump in time (or holding jump with auto-bhop enabled). This fix causes the player to always be able to jump in this scenario. It also prevents you from touching the ground and edge bugging off it without activating triggers there. Note that you are still able to slide off by not pressing jump, if you wish to do so.
-
-**Stair Sliding** (Surf Only)
-
-The Source engine lets you move up stairs without requiring you to actually jump up each step -- as if the stairs were a simple incline -- and if you are moving fast this means you can slide up them quickly as well (on CSGO, sliding requires [Movement Unlocker](https://forums.alliedmods.net/showthread.php?t=255298)). However, if you are airborne and try to land on them at high speed, you may collide with the vertical face of a stair step before landing on top of a step, which results in a loss of speed and likely no slide. In the interest of making the incline-like behavior of stairs more consistent, this fix lets you slide up stairs when landing on them even if you hit the side of a stair step before the top of one.  
-
-This fix will only be applied on surf maps (maps starting with `surf_`) because it has undesirable side-effects on bhop maps. It is also unlikely to be useful on bhop.
-
----
-A more technical explanation of these fixes can be found [here](tech.md).
+- **Downhill inclines:** you always get boosted when landing on a downhill slope (what Slopefix did, without its double boosts on `trigger_push` slopes).
+- **Uphill inclines:** you never randomly lose speed when jumping up a slope, as long as keeping it was possible.
+- **Trigger jumping:** you can't jump on thin triggers (boosters, teleports) without activating them.
+- **Telehops:** you can't hit the wall or floor behind a teleport in the same tick you touch it.
+- **Edge bugs:** landing on the very edge of a platform at speed still lets you jump, and still activates triggers there.
+- **Stair sliding** (surf maps only): hitting the face of a step while landing on stairs at speed still lets you slide up them.
 
 ## Settings
 
-The fixes can be disabled individually by setting the following cvars to `0` in `cfg/sourcemod/plugin.rngfix.cfg`. All fixes are enabled by default.
+Set these in `cfg/sourcemod/plugin.rngfix.cfg`.
 
-`rngfix_downhill`
+| Cvar | Default | Description |
+|---|---|---|
+| `rngfix_downhill` | `1` | Downhill fix. |
+| `rngfix_uphill` | `1` | Uphill fix. `-1` also normalizes effects in the player's favour (not recommended). |
+| `rngfix_triggerjump` | `1` | Trigger jump fix. |
+| `rngfix_telehop` | `1` | Telehop fix. `2` only restores speed if the player reached the teleport before the collision. |
+| `rngfix_edge` | `1` | Edge bug fix. |
+| `rngfix_stairs` | `1` | Stair slide fix. |
+| `rngfix_subtick` | `1` | Subtick fixes. `0` = upstream timing. |
+| `rngfix_subtick_parts` | `15` | Troubleshooting: which subtick parts run (sum of `1` time credit, `2` stair leftover, `4` teleport leftover, `8` multi-surface edge prediction). |
+| `rngfix_bots` | `0` | Apply fixes to bots too. Off so walking replay bots aren't nudged. |
+| `rngfix_surfmap` | `-1` | Is this a surf map? `-1` = name starts with `surf_`, `0` = no, `1` = yes. Set per map, and reset to `-1` in your server config. |
+| `rngfix_useoldslopefixlogic` | `0` | Old Slopefix behaviour, for maps that rely on it. Set per map. |
+| `rngfix_debug` | `0` | `1` = debug messages (including why a fix was skipped), `2` = also lasers. |
 
-`rngfix_uphill`
+**Command:** `sm_rngfix_stats` shows how often each fix has fired for you, and some server-wide counters. `sm_rngfix_stats reset` zeroes them.
 
-`rngfix_triggerjump`
+## License
 
-`rngfix_telehop`
-
-`rngfix_edge`
-
-`rngfix_stairs`
+GPLv3, as upstream. See [LICENSE](LICENSE).
